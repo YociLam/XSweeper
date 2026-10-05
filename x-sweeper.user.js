@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X清道夫 / X Sweeper
 // @namespace    local.x-sweeper
-// @version      1.2.4
+// @version      1.2.5
 // @homepageURL  https://github.com/YociLam/XSweeper
 // @updateURL    https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js
 // @downloadURL  https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js
@@ -1158,24 +1158,36 @@
   }
 
   function cornerButtons() {
-    const nodes = [...document.querySelectorAll('a, button, div[role="button"]')];
     const found = [];
-    for (const el of nodes) {
-      if (el.closest('#xs-root, #xs-peek')) continue;
-      const rect = el.getBoundingClientRect();
-      if (rect.width < 32 || rect.height < 32 || rect.width > 72 || rect.height > 72) continue;
-      if (Math.abs(rect.width - rect.height) > 8) continue;
-      if (rect.right < window.innerWidth - 96) continue;
-      if (rect.bottom < window.innerHeight - 280) continue;
-      const style = getComputedStyle(el);
-      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) continue;
-      found.push(el);
+    const seen = new Set();
+    const probeX = [28, 46, 68].map((inset) => window.innerWidth - inset);
+    for (let y = window.innerHeight - 16; y > window.innerHeight - 380; y -= 12) {
+      for (const x of probeX) {
+        const hits = document.elementsFromPoint(x, y);
+        for (const hit of hits) {
+          let node = hit;
+          while (node && node !== document.body && node !== document.documentElement) {
+            if (node.closest('#xs-root, #xs-peek')) break;
+            const rect = node.getBoundingClientRect();
+            const square = rect.width >= 32 && rect.width <= 84 && rect.height >= 32 && rect.height <= 84 && Math.abs(rect.width - rect.height) <= 10;
+            if (square && rect.right > window.innerWidth - 140 && rect.bottom > window.innerHeight - 420) {
+              if (!seen.has(node)) {
+                seen.add(node);
+                found.push(node);
+              }
+              break;
+            }
+            if (rect.width > 220 || rect.height > 420) break;
+            node = node.parentElement;
+          }
+        }
+      }
     }
     const outer = found.filter((el) => !found.some((other) => other !== el && other.contains(el)));
     outer.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
     if (!outer.length) return [];
     const left = outer[outer.length - 1].getBoundingClientRect().left;
-    return outer.filter((el) => Math.abs(el.getBoundingClientRect().left - left) < 8);
+    return outer.filter((el) => Math.abs(el.getBoundingClientRect().left - left) < 12);
   }
 
   function paintSource(el) {
@@ -1216,10 +1228,30 @@
     return null;
   }
 
+  function placePeekFixed(peek, stack) {
+    const source = paintSource(stack[0]);
+    const top = source.getBoundingClientRect();
+    if (top.width < 32) return false;
+    const next = stack[1] ? paintSource(stack[1]).getBoundingClientRect() : null;
+    const gap = next && next.top > top.bottom ? Math.round(next.top - top.bottom) : 12;
+    paintPeek(peek, stack[0]);
+    if (peek.parentElement !== document.documentElement) document.documentElement.append(peek);
+    peek.style.position = 'fixed';
+    peek.style.margin = '0';
+    peek.style.flex = 'none';
+    peek.style.left = `${Math.round(top.left)}px`;
+    peek.style.top = `${Math.max(8, Math.round(top.top - gap - top.height))}px`;
+    peek.style.right = 'auto';
+    peek.style.bottom = 'auto';
+    peek.style.zIndex = '2147483000';
+    return true;
+  }
+
   function dockPeek(peek) {
     const stack = cornerButtons();
-    const host = stack.length >= 2 ? columnHost(stack) : null;
-    if (!host) return false;
+    if (!stack.length) return false;
+    const host = columnHost(stack);
+    if (!host) return placePeekFixed(peek, stack);
     const sample = stack[0];
     paintPeek(peek, sample);
     peek.style.position = 'relative';
@@ -1232,12 +1264,13 @@
     peek.style.alignSelf = 'center';
     let child = sample;
     while (child.parentElement && child.parentElement !== host) child = child.parentElement;
+    if (child.parentElement !== host) return placePeekFixed(peek, stack);
     peek.style.margin = getComputedStyle(child).margin;
     const reverse = getComputedStyle(host).flexDirection === 'column-reverse';
     if (reverse) {
       if (child.nextElementSibling !== peek) child.after(peek);
     } else if (child.previousElementSibling !== peek) child.before(peek);
-    return peek.parentElement === host;
+    return peek.parentElement === host || placePeekFixed(peek, stack);
   }
 
   function syncPeek() {
@@ -1251,11 +1284,11 @@
     }
     peek.setAttribute('aria-label', t('expand'));
     if (dockPeek(peek)) {
-      peek.dataset.docked = '1';
+      peek.dataset.docked = peek.parentElement === document.documentElement ? 'fixed' : '1';
       peek.style.display = 'inline-flex';
       return;
     }
-    delete peek.dataset.docked;
+    if (peek.dataset.docked) return;
     peek.style.display = 'none';
   }
 
@@ -1568,7 +1601,7 @@
     try { sessionStorage.removeItem('ownPostDelete.resume'); } catch (error) { /* ignore */ }
   }
 
-  const VERSION = '1.2.4';
+  const VERSION = '1.2.5';
   const UPDATE_URL = 'https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js';
 
   function versionGreater(remote, local) {
@@ -1688,7 +1721,7 @@
     const queuePeek = () => {
       if (peekQueued || !settings.ui.collapsed) return;
       const peek = document.getElementById('xs-peek');
-      if (peek?.dataset.docked === '1' && peek.isConnected && peek.parentElement !== document.documentElement) return;
+      if (peek?.dataset.docked) return;
       peekQueued = true;
       requestAnimationFrame(() => {
         peekQueued = false;
