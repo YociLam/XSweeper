@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X清道夫 / X Sweeper
 // @namespace    local.x-sweeper
-// @version      1.2.1
+// @version      1.2.2
 // @homepageURL  https://github.com/YociLam/XSweeper
 // @updateURL    https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js
 // @downloadURL  https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js
@@ -13,7 +13,10 @@
 // @match        *://*.twitter.com/*
 // @match        *://twitter.com/*
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @grant        GM_notification
+// @grant        GM_openInTab
+// @connect      raw.githubusercontent.com
 // @noframes
 // ==/UserScript==
 
@@ -75,6 +78,7 @@
       recover: 'Scanning from the top for matches that were not deleted.',
       stats: 'Deleted {deleted} · Skipped {skipped} · Missed {missed}',
       rate: ' · about {n}/min',
+      updateReady: 'Version {v} is ready. Click to install.',
     },
     'zh-Hans': {
       title: 'X清道夫', post: '原创', reply: '回复', quote: '引用', repost: '转帖',
@@ -108,6 +112,7 @@
       recover: '回到顶部，查找符合条件但没删掉的帖。',
       stats: '已删 {deleted} · 跳过 {skipped} · 未删除 {missed}',
       rate: ' · 约 {n} 条/分',
+      updateReady: '有新版本 {v}。点这条通知安装。',
     },
     'zh-Hant': {
       title: 'X清道夫', post: '原創', reply: '回覆', quote: '引用', repost: '轉帖',
@@ -141,6 +146,7 @@
       recover: '回到頂部，尋找符合條件但沒刪掉的帖。',
       stats: '已刪 {deleted} · 跳過 {skipped} · 未刪除 {missed}',
       rate: ' · 約 {n} 則/分',
+      updateReady: '有新版本 {v}。點這則通知安裝。',
     },
     ja: {
       title: 'X Sweeper', post: '投稿', reply: '返信', quote: '引用', repost: 'リポスト',
@@ -174,6 +180,7 @@
       recover: '上から、条件に合う未削除を探します。',
       stats: '削除 {deleted} · スキップ {skipped} · 未削除 {missed}',
       rate: ' · 約 {n}/分',
+      updateReady: '新しいバージョン {v} があります。クリックでインストール。',
     },
     ko: {
       title: 'X Sweeper', post: '게시물', reply: '답글', quote: '인용', repost: '리포스트',
@@ -207,6 +214,7 @@
       recover: '맨 위에서 조건에 맞지만 지우지 못한 항목을 찾습니다.',
       stats: '삭제 {deleted} · 건너뜀 {skipped} · 미삭제 {missed}',
       rate: ' · 약 {n}/분',
+      updateReady: '새 버전 {v}이 있습니다. 알림을 누르면 설치합니다.',
     },
   };
 
@@ -1420,6 +1428,50 @@
     try { sessionStorage.removeItem('ownPostDelete.resume'); } catch (error) { /* ignore */ }
   }
 
+  const VERSION = '1.2.2';
+  const UPDATE_URL = 'https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js';
+
+  function versionGreater(remote, local) {
+    const nums = (value) => String(value).split('.').map((part) => Number.parseInt(part, 10) || 0);
+    const left = nums(remote);
+    const right = nums(local);
+    const count = Math.max(left.length, right.length);
+    for (let i = 0; i < count; i += 1) {
+      const gap = (left[i] || 0) - (right[i] || 0);
+      if (gap) return gap > 0;
+    }
+    return false;
+  }
+
+  function checkUpdate() {
+    if (typeof GM_xmlhttpRequest !== 'function') return;
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: UPDATE_URL,
+      timeout: 15000,
+      nocache: true,
+      onload(response) {
+        if (response.status !== 200) return;
+        const found = /@version\s+([0-9]+(?:\.[0-9]+){1,3})/.exec(String(response.responseText || '').slice(0, 500));
+        const remote = found && found[1];
+        if (!remote || !versionGreater(remote, VERSION)) return;
+        try {
+          if (sessionStorage.getItem('xsweeper.updateSeen') === remote) return;
+          sessionStorage.setItem('xsweeper.updateSeen', remote);
+        } catch (error) { /* ignore */ }
+        if (typeof GM_notification !== 'function') return;
+        GM_notification({
+          title: t('title'),
+          text: t('updateReady', { v: remote }),
+          timeout: 0,
+          onclick() {
+            if (typeof GM_openInTab === 'function') GM_openInTab(UPDATE_URL, { active: true });
+          },
+        });
+      },
+    });
+  }
+
   function boot() {
     const waitBody = () => {
       if (!document.body) {
@@ -1469,6 +1521,7 @@
       watchSidebar();
     }, 2000);
     watchSidebar();
+    checkUpdate();
   }
 
   boot();

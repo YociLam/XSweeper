@@ -14,7 +14,7 @@ Tampermonkey script that cleans your own posts on the X timeline already open. C
 2. Open https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js
 3. Open x.com and use the panel.
 
-Tampermonkey compares `@version` on its own schedule. The first install has to come from the link above. Later version bumps are offered as updates. Greasy Fork is not required.
+The first install has to come from the link above. After that, opening X checks for a newer version and Tampermonkey shows a notification. Click the notification to install. The panel has no update control. Greasy Fork is not required.
 
 If an older script such as “删自己的旧帖” or “时间线清理” is still installed, disable or remove it and keep only this one.
 
@@ -34,7 +34,7 @@ Custom dates are typed, for example `2026-10-05`. `/` and `.` also work. The sta
 2. 打开 https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js
 3. 打开 x.com，使用侧栏里的面板。
 
-油猴会按自己的检查间隔对比 `@version`。第一次要从上面的地址安装，之后版本号升高时会提示更新。不需要发布到 Greasy Fork。
+第一次要从上面的地址安装。之后打开 X 会检查新版本，有更新时油猴弹出通知，点通知即可安装。面板上没有检查更新。不需要发布到 Greasy Fork。
 
 如果油猴里还留着旧的「删自己的旧帖」或「时间线清理」，先停用或删掉，只保留这一份。
 
