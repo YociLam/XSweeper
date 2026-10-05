@@ -6,13 +6,15 @@
 
 Tampermonkey script for cleaning posts on the X timeline that is already open.
 
-在已经打开的 X 时间线上，按类型、时间和关键词清理帖子。界面跟在侧栏里，可以收起，也可以拖出来。
+在已经打开的 X 时间线上，按类型、时间和关键词清理帖子。界面跟在侧栏里，可以收起，也可以拖出来。面板语言默认英文，可在标题栏改成中文，不跟随 X 页面语言。
 
 ## Install / 安装
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/).
-2. Import `x-sweeper.user.js`.
+2. Open the install link: https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js
 3. Open x.com and use the X Sweeper / X清道夫 panel.
+
+油猴会按自己的检查间隔对比 `@version`。第一次要从上面的地址安装，之后版本号升高时会提示更新。不需要发布到 Greasy Fork。
 
 如果油猴里还留着旧的「删自己的旧帖」或「时间线清理」，先停用或删掉，只保留这一份。
 
