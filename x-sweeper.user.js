@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X清道夫 / X Sweeper
 // @namespace    local.x-sweeper
-// @version      1.2.3
+// @version      1.2.4
 // @homepageURL  https://github.com/YociLam/XSweeper
 // @updateURL    https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js
 // @downloadURL  https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js
@@ -1205,62 +1205,39 @@
     img.style.height = `${icon}px`;
   }
 
+  function columnHost(stack) {
+    let node = stack[0].parentElement;
+    while (node && node !== document.documentElement) {
+      if (!stack.every((el) => node.contains(el))) return null;
+      const style = getComputedStyle(node);
+      if ((style.display === 'flex' || style.display === 'inline-flex') && style.flexDirection.startsWith('column')) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
   function dockPeek(peek) {
     const stack = cornerButtons();
-    const fallback = () => {
-      peek.style.position = 'fixed';
-      peek.style.right = '16px';
-      peek.style.bottom = '16px';
-      peek.style.left = 'auto';
-      peek.style.top = 'auto';
-      peek.style.width = '44px';
-      peek.style.height = '44px';
-      peek.style.margin = '0';
-      peek.style.borderRadius = '16px';
-      peek.style.backgroundColor = '#fff';
-      peek.style.boxShadow = '0 0 15px rgba(101,119,134,0.2), 0 0 3px 1px rgba(101,119,134,0.15)';
-      peek.style.border = '0';
-      peek.style.zIndex = '2147483000';
-      const img = peek.querySelector('img');
-      img.style.width = '22px';
-      img.style.height = '22px';
-      if (peek.parentElement !== document.documentElement) document.documentElement.append(peek);
-    };
-    if (!stack.length) {
-      fallback();
-      return;
-    }
+    const host = stack.length >= 2 ? columnHost(stack) : null;
+    if (!host) return false;
     const sample = stack[0];
     paintPeek(peek, sample);
-    const parent = sample.parentElement;
-    const sameParent = parent && stack.every((el) => el.parentElement === parent);
-    const parentStyle = sameParent ? getComputedStyle(parent) : null;
-    const flexCol = parentStyle && (parentStyle.display === 'flex' || parentStyle.display === 'inline-flex') && parentStyle.flexDirection.startsWith('column');
-    if (flexCol) {
-      peek.style.position = 'relative';
-      peek.style.left = 'auto';
-      peek.style.top = 'auto';
-      peek.style.right = 'auto';
-      peek.style.bottom = 'auto';
-      peek.style.margin = getComputedStyle(sample).margin;
-      peek.style.zIndex = 'auto';
-      const reverse = parentStyle.flexDirection === 'column-reverse';
-      if (reverse) {
-        if (parent.lastElementChild !== peek) parent.append(peek);
-      } else if (parent.firstElementChild !== peek) parent.prepend(peek);
-      return;
-    }
-    const top = paintSource(sample).getBoundingClientRect();
-    const next = stack.length > 1 ? paintSource(stack[1]).getBoundingClientRect() : null;
-    const gap = next ? Math.max(0, Math.round(next.top - top.bottom)) : 12;
-    if (peek.parentElement !== document.documentElement) document.documentElement.append(peek);
-    peek.style.position = 'fixed';
-    peek.style.margin = '0';
-    peek.style.left = `${Math.round(top.left)}px`;
-    peek.style.top = `${Math.max(8, Math.round(top.top - gap - top.height))}px`;
+    peek.style.position = 'relative';
+    peek.style.left = 'auto';
+    peek.style.top = 'auto';
     peek.style.right = 'auto';
     peek.style.bottom = 'auto';
-    peek.style.zIndex = '2147483000';
+    peek.style.zIndex = 'auto';
+    peek.style.flex = '0 0 auto';
+    peek.style.alignSelf = 'center';
+    let child = sample;
+    while (child.parentElement && child.parentElement !== host) child = child.parentElement;
+    peek.style.margin = getComputedStyle(child).margin;
+    const reverse = getComputedStyle(host).flexDirection === 'column-reverse';
+    if (reverse) {
+      if (child.nextElementSibling !== peek) child.after(peek);
+    } else if (child.previousElementSibling !== peek) child.before(peek);
+    return peek.parentElement === host;
   }
 
   function syncPeek() {
@@ -1268,12 +1245,18 @@
     if (!peek) return;
     if (!settings.ui.collapsed) {
       peek.style.display = 'none';
-      if (peek.parentElement !== document.documentElement) document.documentElement.append(peek);
+      delete peek.dataset.docked;
+      if (peek.parentElement && peek.parentElement !== document.documentElement) document.documentElement.append(peek);
       return;
     }
-    peek.style.display = 'inline-flex';
     peek.setAttribute('aria-label', t('expand'));
-    dockPeek(peek);
+    if (dockPeek(peek)) {
+      peek.dataset.docked = '1';
+      peek.style.display = 'inline-flex';
+      return;
+    }
+    delete peek.dataset.docked;
+    peek.style.display = 'none';
   }
 
   function place(root) {
@@ -1585,7 +1568,7 @@
     try { sessionStorage.removeItem('ownPostDelete.resume'); } catch (error) { /* ignore */ }
   }
 
-  const VERSION = '1.2.3';
+  const VERSION = '1.2.4';
   const UPDATE_URL = 'https://raw.githubusercontent.com/YociLam/XSweeper/main/x-sweeper.user.js';
 
   function versionGreater(remote, local) {
@@ -1701,6 +1684,18 @@
       watchSidebar();
     }, 2000);
     watchSidebar();
+    let peekQueued = false;
+    const queuePeek = () => {
+      if (peekQueued || !settings.ui.collapsed) return;
+      const peek = document.getElementById('xs-peek');
+      if (peek?.dataset.docked === '1' && peek.isConnected && peek.parentElement !== document.documentElement) return;
+      peekQueued = true;
+      requestAnimationFrame(() => {
+        peekQueued = false;
+        syncPeek();
+      });
+    };
+    new MutationObserver(queuePeek).observe(document.documentElement, { childList: true, subtree: true });
     checkUpdate(false);
     if (typeof GM_registerMenuCommand === 'function') {
       GM_registerMenuCommand(t('checkUpdate'), () => checkUpdate(true));
